@@ -1,7 +1,38 @@
 
 #include <esp32-hal-ledc.h>
+
+// ========== Motor Control Variables ==========
 int speed = 255;  
 int noStop = 0;
+
+// Motor channel assignments (matching ESP32CAM_RCTANK.ino)
+#define PWM_CHANNEL_A 3
+#define PWM_CHANNEL_B 4
+#define PWM_CHANNEL_DIR_A 5
+#define PWM_CHANNEL_DIR_B 6
+
+// ========== DRV8833 Motor Control Functions ==========
+// Direction values for DRV8833:
+// 0   = Reverse
+// 255 = Forward
+// For more advanced control, use PWM on direction pin for braking
+
+void setMotorA(int pwmSpeed, int direction) {
+  ledcWrite(PWM_CHANNEL_A, pwmSpeed);
+  ledcWrite(PWM_CHANNEL_DIR_A, direction);
+}
+
+void setMotorB(int pwmSpeed, int direction) {
+  ledcWrite(PWM_CHANNEL_B, pwmSpeed);
+  ledcWrite(PWM_CHANNEL_DIR_B, direction);
+}
+
+void stopAllMotors() {
+  ledcWrite(PWM_CHANNEL_A, 0);
+  ledcWrite(PWM_CHANNEL_B, 0);
+  ledcWrite(PWM_CHANNEL_DIR_A, 0);
+  ledcWrite(PWM_CHANNEL_DIR_B, 0);
+}
 
 
 #include "esp_http_server.h"
@@ -254,55 +285,67 @@ static esp_err_t cmd_handler(httpd_req_t *req)
     }     
     else if(!strcmp(variable, "car")) {  
       if (val==1) {
+        // Forward - both tracks same speed, forward direction
         Serial.println("Forward");
         actstate = fwd;     
-        ledcWrite(4,speed);  // pin 12
-        ledcWrite(3,0);      // pin 13
-        ledcWrite(5,speed);  // pin 14  
-        ledcWrite(6,0);      // pin 15   
+        setMotorA(speed, 255);  // Left track forward
+        setMotorB(speed, 255);  // Right track forward
         delay(200);
       }
       else if (val==2) {
+        // Turn Left - slow down right track
         Serial.println("TurnLeft");
-        ledcWrite(3,0);
-        ledcWrite(5,0); 
-        if      (actstate == fwd) { ledcWrite(4,speed); ledcWrite(6,    0); }
-        else if (actstate == rev) { ledcWrite(4,    0); ledcWrite(6,speed); }
-        else                      { ledcWrite(4,speed); ledcWrite(6,speed); }
+        if      (actstate == fwd) { 
+          setMotorA(speed/2, 255);   // Left slower
+          setMotorB(speed, 255);     // Right faster
+        }
+        else if (actstate == rev) { 
+          setMotorA(speed/2, 0);     // Left slower reverse
+          setMotorB(speed, 0);       // Right faster reverse
+        }
+        else                      { 
+          setMotorA(speed, 255);     // Stationary turn
+          setMotorB(speed, 255); 
+        }
         delay(100);              
       }
       else if (val==3) {
+        // Stop - coast to stop
         Serial.println("Stop"); 
         actstate = stp;       
-        ledcWrite(4,0);
-        ledcWrite(3,0);
-        ledcWrite(5,0);     
-        ledcWrite(6,0);  
+        stopAllMotors();
       }
       else if (val==4) {
+        // Turn Right - slow down left track
         Serial.println("TurnRight");
-        ledcWrite(4,0);
-        ledcWrite(6,0); 
-        if      (actstate == fwd) { ledcWrite(3,    0); ledcWrite(5,speed); }
-        else if (actstate == rev) { ledcWrite(3,speed); ledcWrite(5,    0); }
-        else                      { ledcWrite(3,speed); ledcWrite(5,speed); }
+        if      (actstate == fwd) { 
+          setMotorA(speed, 255);     // Left faster
+          setMotorB(speed/2, 255);   // Right slower
+        }
+        else if (actstate == rev) { 
+          setMotorA(speed, 0);       // Left faster reverse
+          setMotorB(speed/2, 0);     // Right slower reverse
+        }
+        else                      { 
+          setMotorA(speed, 255);     // Stationary turn
+          setMotorB(speed, 255); 
+        }
         delay(100);              
       }
       else if (val==5) {
+        // Backward - both tracks same speed, reverse direction
         Serial.println("Backward");  
         actstate = rev;      
-        ledcWrite(4,0);
-        ledcWrite(3,speed);
-        ledcWrite(5,0);  
-        ledcWrite(6,speed); 
+        setMotorA(speed, 0);    // Left track reverse
+        setMotorB(speed, 0);    // Right track reverse
         delay(200);              
       }
+      
+      // Auto-stop after command (unless noStop flag is set)
       if (noStop!=1) 
       {
-        ledcWrite(3, 0);
-        ledcWrite(4, 0);  
-        ledcWrite(5, 0);  
-        ledcWrite(6, 0);
+        delay(50);
+        stopAllMotors();
       }         
     }        
     else 

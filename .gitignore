@@ -1,0 +1,11 @@
+# Ignore Wi-Fi credentials file (local secrets)
+wifi_creds.h
+
+# Ignored generated files (if any)
+*.bin
+*.elf
+*.map
+*.log
+
+# macOS
+.DS_Store

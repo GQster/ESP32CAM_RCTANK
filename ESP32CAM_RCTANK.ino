@@ -2,8 +2,11 @@
 ESP32-CAM Remote Control 
 */
 
-const char* ssid = "FSM";
-const char* password = "0101010101";
+// ========== WiFi Configuration ==========
+#include "wifi_creds.h"  // keeps secrets out of git
+
+const char* ssid = WIFI_SSID;
+const char* password = WIFI_PASSWORD;
 
 #include "esp_wifi.h"
 #include "esp_camera.h"
@@ -84,21 +87,43 @@ const char* password = "0101010101";
 
 void startCameraServer();
 
-const int MotPin0 = 12;  
-const int MotPin1 = 13;  
-const int MotPin2 = 14;  
-const int MotPin3 = 15;  
+// ========== Motor Control Configuration (DRV8833) ==========
+// DRV8833 Dual Motor Driver - Each motor uses 2 pins:
+// Motor A (LEFT track):  IN1=PWM speed, IN2=direction
+// Motor B (RIGHT track): IN3=PWM speed, IN4=direction
+//
+// Direction logic:
+// IN_x LOW,  IN_y LOW   = Coast (freewheel)
+// IN_x LOW,  IN_y HIGH  = Reverse
+// IN_x HIGH, IN_y LOW   = Forward
+// IN_x HIGH, IN_y HIGH  = Brake
+//
+// Recommended GPIO connections:
+const int MOTOR_A_PWM = 12;      // Left track speed (PWM)
+const int MOTOR_A_DIR = 13;      // Left track direction
+const int MOTOR_B_PWM = 14;      // Right track speed (PWM)
+const int MOTOR_B_DIR = 15;      // Right track direction
+
+#define PWM_FREQ 5000    // 5 kHz - good frequency for DRV8833
+#define PWM_CHANNEL_A 3
+#define PWM_CHANNEL_B 4
+#define PWM_CHANNEL_DIR_A 5
+#define PWM_CHANNEL_DIR_B 6
 
 void initMotors() 
 {
-  ledcSetup(3, 2000, 8); // 2000 hz PWM, 8-bit resolution
-  ledcSetup(4, 2000, 8); // 2000 hz PWM, 8-bit resolution
-  ledcSetup(5, 2000, 8); // 2000 hz PWM, 8-bit resolution
-  ledcSetup(6, 2000, 8); // 2000 hz PWM, 8-bit resolution
-  ledcAttachPin(MotPin0, 3); 
-  ledcAttachPin(MotPin1, 4); 
-  ledcAttachPin(MotPin2, 5); 
-  ledcAttachPin(MotPin3, 6); 
+  // Setup PWM for motor speeds (channels 3 & 4)
+  ledcSetup(PWM_CHANNEL_A, PWM_FREQ, 8);     // 8-bit resolution (0-255)
+  ledcSetup(PWM_CHANNEL_B, PWM_FREQ, 8);
+  ledcAttachPin(MOTOR_A_PWM, PWM_CHANNEL_A);
+  ledcAttachPin(MOTOR_B_PWM, PWM_CHANNEL_B);
+  
+  // Setup PWM for direction control (channels 5 & 6)
+  // Can be digital (HIGH/LOW) or PWM for variable braking
+  ledcSetup(PWM_CHANNEL_DIR_A, PWM_FREQ, 8);
+  ledcSetup(PWM_CHANNEL_DIR_B, PWM_FREQ, 8);
+  ledcAttachPin(MOTOR_A_DIR, PWM_CHANNEL_DIR_A);
+  ledcAttachPin(MOTOR_B_DIR, PWM_CHANNEL_DIR_B);
 }
 
 const int ServoPin = 2;  
